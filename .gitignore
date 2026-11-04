@@ -28,3 +28,10 @@ out/
 *.tsbuildinfo
 npm-debug.log*
 .DS_Store
+
+# Tests end-to-end
+test-results/
+playwright-report/
+
+# Generado por Next.js
+next-env.d.ts
