@@ -5,7 +5,6 @@ import './globals.css'
 export const metadata: Metadata = {
   title: 'VacacionApp | Organizá tus vacaciones',
   description: 'Encontrá, compará y reservá experiencias únicas en Mar del Plata desde un solo lugar.',
-  generator: 'v0.app',
   icons: {
     icon: [
       {
