@@ -1,6 +1,6 @@
 # Prueba E2E en producción — VacacionApp
 
-Probado el **2026-11-08** en https://vacacionapp-mdp-d7e72.web.app con un navegador real (Chromium), en celular (390 px) y escritorio. Se usó una cuenta de prueba de admin y un usuario nuevo registrado para la prueba (**ya borrado**).
+Probado el **2026-11-08** en https://vacacionapp-ucaecemdp.web.app con un navegador real (Chromium), en celular (390 px) y escritorio. Se usó una cuenta de prueba de admin y un usuario nuevo registrado para la prueba (**ya borrado**).
 
 ## Resultado
 

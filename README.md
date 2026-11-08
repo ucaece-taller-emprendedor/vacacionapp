@@ -2,7 +2,7 @@
 
 VacacionApp reúne balnearios, actividades acuáticas, bienestar y gastronomía de Mar del Plata: los **turistas** exploran, guardan favoritos y reservan (**pagos simulados, no se cobra nada**); los **prestadores** cargan su comercio (lo aprueba el equipo) y gestionan sus servicios y reservas; el **admin** modera todo. Está construida desde la plantilla común del Taller (rama/commit base `main` del repo de la plantilla). **Todo gratis y sin tarjeta** (Firebase plan Spark + GitHub).
 
-Sitio: https://vacacionapp-mdp-d7e72.web.app (cuando se despliegue) · Proyecto Firebase: `vacacionapp-mdp-d7e72`.
+Sitio: https://vacacionapp-ucaecemdp.web.app (cuando se despliegue) · Proyecto Firebase: `vacacionapp-mdp-d7e72`.
 
 > **Trabajar con una IA / traspaso:** [`CLAUDE.md`](CLAUDE.md) · [`docs/TRABAJAR-CON-IA.md`](docs/TRABAJAR-CON-IA.md) · [`docs/INSTRUCTIVO-SETUP.md`](docs/INSTRUCTIVO-SETUP.md) · [`docs/ARQUITECTURA.md`](docs/ARQUITECTURA.md)
 
