@@ -1,6 +1,7 @@
 import { createBrowserRouter, Navigate } from 'react-router'
 import { RequireAdmin, RequireAuth, RequireRole } from '@/auth/guards'
 import { AdminLayout, SitioLayout } from '@/components/layouts'
+import Administradores from '@/pages/admin/Administradores'
 import AdminLogin from '@/pages/admin/AdminLogin'
 import { AdminComercios, AdminInicio, AdminReservas, AdminServicios, AdminUsuarios } from '@/pages/admin/AdminPaginas'
 import { AppInicio, CompletarPerfil, Ingresar, Registro, Suspendido } from '@/pages/app/Acceso'
@@ -48,12 +49,13 @@ export const router = createBrowserRouter([
     path: '/admin',
     element: (
       <RequireAdmin>
-        <AdminLayout navegacion={[{ to: '/admin', etiqueta: 'Inicio', fin: true }, { to: '/admin/usuarios', etiqueta: 'Usuarios' }, { to: '/admin/comercios', etiqueta: 'Comercios' }, { to: '/admin/servicios', etiqueta: 'Servicios' }, { to: '/admin/reservas', etiqueta: 'Reservas' }]} />
+        <AdminLayout navegacion={[{ to: '/admin', etiqueta: 'Inicio', fin: true }, { to: '/admin/usuarios', etiqueta: 'Usuarios' }, { to: '/admin/administradores', etiqueta: 'Administradores' }, { to: '/admin/comercios', etiqueta: 'Comercios' }, { to: '/admin/servicios', etiqueta: 'Servicios' }, { to: '/admin/reservas', etiqueta: 'Reservas' }]} />
       </RequireAdmin>
     ),
     children: [
       { index: true, element: <AdminInicio /> },
       { path: 'usuarios', element: <AdminUsuarios /> },
+      { path: 'administradores', element: <Administradores /> },
       { path: 'comercios', element: <AdminComercios /> },
       { path: 'servicios', element: <AdminServicios /> },
       { path: 'reservas', element: <AdminReservas /> },
