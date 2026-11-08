@@ -1,0 +1,190 @@
+rules_version = '2';
+
+// ─────────────────────────────────────────────────────────────────────────────
+// REGLAS DE SEGURIDAD DE VACACIONAPP — son la "validación del servidor".
+// Todo lo que no está permitido acá, queda DENEGADO.
+// Roles: turista | prestador (su comercio requiere aprobación) | admin (custom claim `admin: true`).
+//
+// Colecciones:
+//   users/{uid}          perfil (role, status)
+//   commerces/{uid}      comercio del prestador (un comercio por prestador, id = uid)
+//   services/{id}        servicios publicados por comercios aprobados
+//   favorites/{uid_svc}  favoritos del turista
+//   bookings/{id}        reservas (el pago es SIMULADO)
+// ─────────────────────────────────────────────────────────────────────────────
+service cloud.firestore {
+  match /databases/{database}/documents {
+
+    // ── Helpers ────────────────────────────────────────────────────────────
+    function signedIn() { return request.auth != null; }
+    // El rol admin se da con un custom claim (scripts/admin-dar.ts). Un usuario no puede ponérselo.
+    function isAdmin() { return signedIn() && request.auth.token.admin == true; }
+    function isOwner(uid) { return signedIn() && request.auth.uid == uid; }
+    function userDoc(uid) { return get(/databases/$(database)/documents/users/$(uid)).data; }
+    function hasUserDoc(uid) { return exists(/databases/$(database)/documents/users/$(uid)); }
+    function isActive() { return signedIn() && hasUserDoc(request.auth.uid) && userDoc(request.auth.uid).status == 'activo'; }
+    function hasRole(role) { return isActive() && userDoc(request.auth.uid).role == role; }
+    function onlyKeys(keys) { return request.resource.data.keys().hasOnly(keys); }
+    function hasKeys(keys) { return request.resource.data.keys().hasAll(keys); }
+    function changedOnly(keys) { return request.resource.data.diff(resource.data).affectedKeys().hasOnly(keys); }
+    function str(v, min, max) { return v is string && v.size() >= min && v.size() <= max; }
+    function commerceDoc(uid) { return get(/databases/$(database)/documents/commerces/$(uid)).data; }
+    function commerceApproved(uid) { return exists(/databases/$(database)/documents/commerces/$(uid)) && commerceDoc(uid).status == 'aprobado'; }
+
+    // Catálogos permitidos (mantener igual que src/config/app.ts)
+    function categoriaValida(v) { return v in ['Carpas y sombrillas', 'Actividades acuáticas', 'Bienestar y spa', 'Gastronomía']; }
+    function zonaValida(v) { return v in ['Playa Grande', 'Varese', 'La Perla', 'Bristol', 'Punta Iglesia', 'Puerto']; }
+    function metodoValido(v) { return v in ['Mercado Pago', 'Tarjeta', 'Transferencia']; }
+
+    // ── users/{uid} ────────────────────────────────────────────────────────
+    match /users/{uid} {
+      // Cada uno lee su perfil; el admin lee y gestiona todos.
+      allow read: if isOwner(uid) || isAdmin();
+
+      // Alta: solo el propio usuario, solo roles registrables, y el estado inicial queda
+      // fijado por el rol (turista → activo; prestador → pendiente hasta que el admin apruebe).
+      // NUNCA se puede crear con role 'admin'.
+      allow create: if isOwner(uid)
+        && onlyKeys(['email', 'displayName', 'role', 'status', 'isDemo', 'createdAt'])
+        && hasKeys(['email', 'displayName', 'role', 'status', 'isDemo', 'createdAt'])
+        && str(request.resource.data.displayName, 2, 80)
+        && request.resource.data.email == request.auth.token.email
+        && request.resource.data.isDemo == false
+        && request.resource.data.createdAt == request.time
+        && ((request.resource.data.role == 'turista' && request.resource.data.status == 'activo')
+         || (request.resource.data.role == 'prestador' && request.resource.data.status == 'pendiente'));
+
+      // El dueño solo puede cambiar su nombre. role y status están vedados (no hay escalada).
+      allow update: if (isOwner(uid)
+          && changedOnly(['displayName'])
+          && str(request.resource.data.displayName, 2, 80))
+        // El admin cambia tipo (nunca a 'admin' desde la app) y estado.
+        || (isAdmin()
+          && changedOnly(['role', 'status', 'displayName'])
+          && request.resource.data.role in ['turista', 'prestador', 'admin']
+          && request.resource.data.status in ['activo', 'pendiente', 'suspendido']
+          && (request.resource.data.role != 'admin' || resource.data.role == 'admin'));
+
+      allow delete: if false;
+    }
+
+    // ── commerces/{uid} ────────────────────────────────────────────────────
+    function comercioValido(d) {
+      return str(d.name, 2, 80) && categoriaValida(d.category) && str(d.description, 10, 600)
+        && str(d.contactName, 2, 80) && str(d.email, 5, 120) && d.email.matches('.+@.+\\..+')
+        && str(d.phone, 6, 30) && str(d.address, 3, 120) && str(d.city, 2, 60) && str(d.province, 2, 60);
+    }
+    match /commerces/{uid} {
+      // Datos de contacto: solo el dueño y el admin (el público ve el nombre desde services).
+      allow read: if isOwner(uid) || isAdmin();
+
+      // El prestador (pendiente o activo, no suspendido) crea SU comercio, siempre en estado 'pendiente'.
+      allow create: if isOwner(uid)
+        && hasUserDoc(uid) && userDoc(uid).role == 'prestador' && userDoc(uid).status in ['activo', 'pendiente']
+        && onlyKeys(['ownerId', 'name', 'category', 'description', 'contactName', 'email', 'phone', 'address', 'city', 'province', 'status', 'isDemo', 'createdAt'])
+        && hasKeys(['ownerId', 'name', 'category', 'description', 'contactName', 'email', 'phone', 'address', 'city', 'province', 'status', 'isDemo', 'createdAt'])
+        && request.resource.data.ownerId == uid
+        && request.resource.data.status == 'pendiente'
+        && request.resource.data.isDemo == false
+        && request.resource.data.createdAt == request.time
+        && comercioValido(request.resource.data);
+
+      // El dueño edita sus datos (NO el estado). El admin solo cambia el estado.
+      allow update: if (isOwner(uid) && changedOnly(['name', 'category', 'description', 'contactName', 'email', 'phone', 'address', 'city', 'province'])
+          && comercioValido(request.resource.data))
+        || (isAdmin() && changedOnly(['status']) && request.resource.data.status in ['pendiente', 'aprobado', 'rechazado', 'suspendido']);
+
+      allow delete: if false;
+    }
+
+    // ── services/{id} ──────────────────────────────────────────────────────
+    function servicioValido(d) {
+      return str(d.title, 3, 100) && str(d.description, 10, 1000) && categoriaValida(d.category) && zonaValida(d.location)
+        && d.price is int && d.price >= 100 && d.price <= 10000000
+        && str(d.unit, 2, 30) && str(d.duration, 2, 40) && str(d.tag, 2, 30) && str(d.policy, 5, 300)
+        && d.includes is list && d.includes.size() <= 10
+        && str(d.image, 1, 500) && (d.image.matches('https://.*') || d.image.matches('/.*'))
+        && d.active is bool;
+    }
+    match /services/{id} {
+      // Lo activo es público; lo inactivo solo lo ve su dueño o el admin.
+      allow read: if resource.data.active == true || isOwner(resource.data.ownerId) || isAdmin();
+
+      // Solo un prestador ACTIVO con comercio APROBADO publica, a su nombre. rating/reviews arrancan en 0.
+      allow create: if hasRole('prestador') && commerceApproved(request.auth.uid)
+        && onlyKeys(['ownerId', 'commerceName', 'title', 'description', 'category', 'location', 'price', 'unit', 'rating', 'reviews', 'image', 'tag', 'duration', 'includes', 'policy', 'active', 'isDemo', 'createdAt'])
+        && request.resource.data.ownerId == request.auth.uid
+        && request.resource.data.commerceName == commerceDoc(request.auth.uid).name
+        && request.resource.data.rating == 0 && request.resource.data.reviews == 0
+        && request.resource.data.isDemo == false
+        && request.resource.data.createdAt == request.time
+        && servicioValido(request.resource.data);
+
+      // El dueño (activo y con comercio aprobado) edita; el admin solo activa/desactiva.
+      allow update: if (hasRole('prestador') && isOwner(resource.data.ownerId) && commerceApproved(request.auth.uid)
+          && changedOnly(['commerceName', 'title', 'description', 'category', 'location', 'price', 'unit', 'image', 'tag', 'duration', 'includes', 'policy', 'active'])
+          && request.resource.data.commerceName == commerceDoc(request.auth.uid).name
+          && servicioValido(request.resource.data))
+        || (isAdmin() && changedOnly(['active']) && request.resource.data.active is bool);
+
+      allow delete: if (hasRole('prestador') && isOwner(resource.data.ownerId)) || isAdmin();
+    }
+
+    // ── favorites/{userId_serviceId} ───────────────────────────────────────
+    match /favorites/{favId} {
+      allow read: if isOwner(resource.data.userId) || isAdmin();
+      allow create: if hasRole('turista')
+        && onlyKeys(['userId', 'serviceId', 'createdAt'])
+        && request.resource.data.userId == request.auth.uid
+        && str(request.resource.data.serviceId, 1, 100)
+        && favId == request.auth.uid + '_' + request.resource.data.serviceId
+        && request.resource.data.createdAt == request.time;
+      allow update: if false;
+      allow delete: if isOwner(resource.data.userId);
+    }
+
+    // ── bookings/{id} ──────────────────────────────────────────────────────
+    function servicioDe(d) { return get(/databases/$(database)/documents/services/$(d.serviceId)).data; }
+    function reservaValida(d) {
+      return d.people is int && d.people >= 1 && d.people <= 20
+        && str(d.fromDate, 10, 10) && str(d.toDate, 10, 10) && d.toDate >= d.fromDate
+        && str(d.shift, 3, 40)
+        && d.status == 'confirmada'
+        // El total lo calcula el cliente pero lo verifican las reglas con el precio REAL del servicio.
+        && d.total is int && d.total == (servicioDe(d).category == 'Carpas y sombrillas' ? servicioDe(d).price : servicioDe(d).price * d.people)
+        && d.payment.keys().hasOnly(['metodo', 'estado', 'monto'])
+        && metodoValido(d.payment.metodo) && d.payment.estado == 'simulado' && d.payment.monto == d.total;
+    }
+    match /bookings/{id} {
+      allow read: if isOwner(resource.data.userId) || isOwner(resource.data.ownerId) || isAdmin();
+
+      allow create: if hasRole('turista')
+        && onlyKeys(['userId', 'userName', 'userEmail', 'serviceId', 'ownerId', 'serviceTitle', 'commerceName', 'location', 'fromDate', 'toDate', 'people', 'shift', 'total', 'status', 'payment', 'createdAt'])
+        && request.resource.data.userId == request.auth.uid
+        && request.resource.data.userName == userDoc(request.auth.uid).displayName
+        && request.resource.data.userEmail == request.auth.token.email
+        && exists(/databases/$(database)/documents/services/$(request.resource.data.serviceId))
+        && servicioDe(request.resource.data).active == true
+        && request.resource.data.ownerId == servicioDe(request.resource.data).ownerId
+        && request.resource.data.serviceTitle == servicioDe(request.resource.data).title
+        && request.resource.data.commerceName == servicioDe(request.resource.data).commerceName
+        && request.resource.data.location == servicioDe(request.resource.data).location
+        && request.resource.data.createdAt == request.time
+        && reservaValida(request.resource.data);
+
+      // Solo cambia el estado (nada más):
+      //  - el turista cancela su reserva confirmada;
+      //  - el prestador (dueño del servicio) marca completada o cancela una confirmada;
+      //  - el admin puede fijar cualquier estado válido.
+      allow update: if changedOnly(['status', 'cancelledAt'])
+        && ((isOwner(resource.data.userId) && hasRole('turista') && resource.data.status == 'confirmada'
+              && request.resource.data.status == 'cancelada' && request.resource.data.cancelledAt == request.time)
+          || (isOwner(resource.data.ownerId) && hasRole('prestador') && resource.data.status == 'confirmada'
+              && ((request.resource.data.status == 'completada' && !('cancelledAt' in request.resource.data.keys()))
+               || (request.resource.data.status == 'cancelada' && request.resource.data.cancelledAt == request.time)))
+          || (isAdmin() && request.resource.data.status in ['confirmada', 'cancelada', 'completada']));
+
+      allow delete: if false;
+    }
+  }
+}

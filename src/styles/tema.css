@@ -1,0 +1,15 @@
+/* TEMA VACACIONAPP — turquesa #147e88, fondo #fbfaf7, texto #183b4d */
+:root {
+  --tema-primario: #147e88;
+  --tema-primario-texto: #ffffff;
+  --tema-acento: #f5a623;
+  --tema-fondo: #fbfaf7;
+  --tema-superficie: #ffffff;
+  --tema-texto: #183b4d;
+  --tema-texto-suave: #55707a;
+  --tema-borde: #dbe8e5;
+  --tema-peligro: #c62828;
+  --tema-ok: #1b7f4b;
+  --tema-radio: 1rem;
+  --tema-fuente: 'Inter', system-ui, -apple-system, 'Segoe UI', Roboto, sans-serif;
+}
