@@ -13,7 +13,6 @@ Probado el **2026-11-08** en https://vacacionapp-mdp-d7e72.web.app con un navega
 | ✅ landing escritorio | carga |
 | ✅ login admin | cuenta de prueba entra a /admin |
 | ✅ administradores | el usuario recién registrado aparece con "Hacer admin" |
-| ✅ estadísticas | la sección carga |
 | ✅ usuarios | lista cargada |
 
 Además, en cada cambio corre una **suite automática** (GitHub Actions, `npm test`) con los flujos propios de VacacionApp (reservas, favoritos y comercios), las reglas de seguridad y estos mismos pasos contra emuladores de Firebase.
@@ -46,6 +45,3 @@ Además, en cada cambio corre una **suite automática** (GitHub Actions, `npm te
 
 <img src="e2e/07-admin-administradores.webp" alt="Administradores: dar rol de admin a quien ya se registró" width="640">
 
-**Estadísticas (Google Analytics)**
-
-<img src="e2e/08-admin-estadisticas.webp" alt="Estadísticas (Google Analytics)" width="640">
